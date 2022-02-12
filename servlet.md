@@ -240,3 +240,351 @@ response.sendRedirect("/showPath?username=张三&password=12345");
 - 重定向两次传输的request信息会丢失
 
 ![image-20220212115638868](servlet.assets/image-20220212115638868.png)
+
+## servlet的特性
+
+- ==线程安全问题==：多线程并发访问同一个servlet对象，如果在方法中对成员变量修改，就会有线程安全问题。
+- ==如何保证线程安全==：
+  1. synchronized关键字：线程线性化
+  2. 实现SingleThreadModel接口：一个线程一个servlet
+  3. 成员变量 局部化
+
+
+
+## Cookie技术
+
+```java
+ @Override
+    public void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+         Cookie cookie = new Cookie("username","yang");
+         // age>0 多少秒后过期; age = 0 关闭浏览器过期 ； age<0 手动关闭浏览器过期；
+         cookie.setMaxAge(60);
+         // 那些请求可以使用该cookie
+         cookie.setPath("/get");
+         response.addCookie(cookie);
+
+        /**
+         * 获取cookies
+         */
+
+        Cookie[] cookies = request.getCookies();
+         if (cookies!=null){
+             for (Cookie cookie1 : cookies){
+                 System.out.println(cookie1.getName()+"-"+cookie1.getValue());
+             }
+         }
+
+    }
+```
+
+### 修改cookie
+
+- 当`setPath`和new Cookie中的name一致时，再new就是修改
+- 如果改变cookie的name和有效路径会新创建一个cookie
+
+
+
+```java
+ @Override
+    public void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+         Cookie cookie = new Cookie("username","yang");
+         // age>0 多少秒后过期; age = 0 关闭浏览器过期 ； age<0 手动关闭浏览器过期；
+         cookie.setMaxAge(60);
+         // 那些请求可以使用该cookie
+         cookie.setPath("/get");
+        
+         Cookie cookie = new Cookie("username","xu");
+         // age>0 多少秒后过期; age = 0 关闭浏览器过期 ； age<0 手动关闭浏览器过期；
+         cookie.setMaxAge(60);
+         response.addCookie(cookie);
+
+        /**
+         * 获取cookies
+         */
+
+        Cookie[] cookies = request.getCookies();
+         if (cookies!=null){
+             for (Cookie cookie1 : cookies){
+                 System.out.println(cookie1.getName()+"-"+cookie1.getValue());
+             }
+         }
+
+    }
+```
+
+### cookie的编码及解码
+
+- cookie默认不支持中文，会乱码
+- 存中文时，需要对unix字符进行操作
+
+```java
+  Cookie cookie = new Cookie(URLEncoder.encode("姓名","utf-8"), URLEncoder.encode("张三","utf-8"));
+```
+
+
+
+```java
+// 解码
+System.out.println(URLDecoder.decode(cookie1.getName() ,"utf-8"));
+```
+
+
+
+## Seesion 对象
+
+- 浏览器关闭session关闭
+- 浏览器第一发送请求，服务器自动创建发送一个cookie里面携带sessionid
+- 一个 Web 服务器可以分配一个唯一的 session 会话 ID 作为每个 Web 客户端的 cookie，对于客户端的后续请求可以使用接收到的 cookie 来识别。
+
+```java
+		 HttpSession httpSession= request.getSession(); // 创建session
+         httpSession.setAttribute("name","zhangsan");
+        httpSession.getAttribute("name");
+         httpSession.removeAttribute("name");
+		 System.out.println(httpSession.getId());
+```
+
+### 生命周期
+
+- 开始：第一次使用session的请求产生，则创建session
+
+- 结束
+
+  - 浏览器关闭
+
+  - session超时
+
+    - ```javascript
+      httpSession.setMaxInactiveInterval(10); // 设置session的有效期10秒
+      ```
+
+  - 手动销毁
+
+    - ```java
+      httpSession.invalidate(); // 立即失效
+      ```
+
+### 禁止cookie后如何使用seesion
+
+浏览器禁用了cookie，seesionID就不会记录（即每次请求都服务器都发送一个新的ID）
+
+==使用URL重写/重定向==
+
+```java
+// 该方法的实现包括判断是否需要在URL中编码会话ID的逻辑。例如，如果浏览器支持Cookie，或关闭会话跟踪，则不需要URL编码。
+ /**
+         * 如果cookie没有禁止，后面的sessionID是不生效的
+         */
+         String url= response.encodeRedirectURL("/get");
+
+         // 随后正常获取session即可
+         response.sendRedirect(url);
+```
+
+## seession和request的区别
+
+- request：一次请求有效
+- session：一次会话有效
+
+
+
+## servletContext
+
+> - web启动时创建。服务器关闭时销毁
+> - 一个web程序一个servletContext，多个servlet共享
+> - web程序不关闭，servletContext就一直存在
+
+获取servletContext：
+
+1. GenericServlet中有getServletContext()方法，所以 使用`this.getServletContext()`即可获取。【推荐】
+2. HttpServletRequest中有getServletContext()方法（推荐）
+3. HttpSession提供了getServletContext()方法
+
+
+
+ServletContext对象用法：
+
+```java
+     ServletContext servletContext = this.getServletContext();
+        servletContext.getRealPath("/index.jsp"); //根据url请求的路径，找寻磁盘对应的真正路径
+        servletContext.getContextPath(); // 获取项目（上下文）的路径（名称）
+        servletContext.setAttribute("1","2");
+        servletContext.removeAttribute("1");
+        servletContext.getAttribute("1");
+```
+
+
+
+ServletContext的使用场景：网站访问次数
+
+
+
+## 过滤器
+
+```xml
+<filter>
+    <filter-name>LogFilter</filter-name>
+    <filter-class>com.yxd.test.MyFilter</filter-class>
+    <init-param>
+        <param-name>Site</param-name>
+        <param-value>yxd</param-value>
+    </init-param>
+</filter>
+
+<filter-mapping>
+   <filter-name>LogFilter</filter-name>
+   <url-pattern>/*</url-pattern>
+</filter-mapping>
+```
+
+```java
+@WebFilter(value = "/")
+public class MyFilter implements javax.servlet.Filter {
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {
+        Filter.super.init(filterConfig);
+    }
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain){
+        System.out.println("begin");
+        chain.doFilter(request,response);
+        System.out.println("end");
+    }
+
+    @Override
+    public void destroy() {
+        Filter.super.destroy();
+    }
+}
+```
+
+- xml由上向下过滤
+- 如果是注解，就是类全名称的字典顺序向下过滤
+- 配置高于注解
+
+拦截路径：
+
+1. 精准拦截：/login
+2. 后缀拦截：*.action
+3. 通配符拦截：/*,注意不能使用 / 
+
+
+
+过滤的场景：
+
+1. 乱码问题
+
+```java
+      request.setCharacterEncoding("utf-8");
+      response.setContentType("text/html;charset=utf-8");
+```
+
+
+
+## 下载文件
+
+- 表单 enctype 属性应该设置为 multipart/form-data.
+- 需要上传包：
+  - [commons-fileupload-1.3.2.jar](http://static.runoob.com/download/commons-fileupload-1.3.2.jar)
+  - [commons-io-2.5.jar](http://static.runoob.com/download/commons-io-2.5.jar)
+
+```html
+form method="post" action="/TomcatTest/UploadServlet" enctype="multipart/form-data">
+    选择一个文件:
+    <input type="file" name="uploadFile" />
+    <br/><br/>
+    <input type="submit" value="上传" />
+</form>
+```
+
+```java
+@WebServlet("/UploadServlet")
+public class UploadServlet extends HttpServlet {
+    private static final long serialVersionUID = 1L;
+     
+    // 上传文件存储目录
+    private static final String UPLOAD_DIRECTORY = "upload";
+ 
+    // 上传配置
+    private static final int MEMORY_THRESHOLD   = 1024 * 1024 * 3;  // 3MB
+    // 文件最大限制
+    private static final int MAX_FILE_SIZE      = 1024 * 1024 * 40; // 40MB
+    private static final int MAX_REQUEST_SIZE   = 1024 * 1024 * 50; // 50MB
+ 
+    /**
+     * 上传数据及保存文件
+     */
+    protected void doPost(HttpServletRequest request,
+        HttpServletResponse response) throws ServletException, IOException {
+        // 检测是否为多媒体上传 （ 表单必须包含 enctype=multipart/form-data）
+        if (!ServletFileUpload.isMultipartContent(request)) {
+            // 如果不是则停止
+            PrintWriter writer = response.getWriter();
+            writer.println("Error: 表单必须包含 enctype=multipart/form-data");
+            writer.flush();
+            return;
+        }
+ 
+        // 配置上传参数
+        DiskFileItemFactory factory = new DiskFileItemFactory();
+        // 设置内存临界值 - 超过后将产生临时文件并存储于临时目录中
+        factory.setSizeThreshold(MEMORY_THRESHOLD);
+        // 设置临时存储目录
+        factory.setRepository(new File(System.getProperty("java.io.tmpdir")));
+ 
+        ServletFileUpload upload = new ServletFileUpload(factory);
+         
+        // 设置最大文件上传值
+        upload.setFileSizeMax(MAX_FILE_SIZE);
+         
+        // 设置最大请求值 (包含文件和表单数据)
+        upload.setSizeMax(MAX_REQUEST_SIZE);
+
+        // 中文处理
+        upload.setHeaderEncoding("UTF-8"); 
+
+        // 构造临时路径来存储上传的文件
+        // 这个路径相对当前应用的目录
+        String uploadPath = request.getServletContext().getRealPath("./") + File.separator + UPLOAD_DIRECTORY;
+       
+         
+        // 如果目录不存在则创建
+        File uploadDir = new File(uploadPath);
+        if (!uploadDir.exists()) {
+            uploadDir.mkdir();
+        }
+ 
+        try {
+            // 解析请求的内容提取文件数据
+            @SuppressWarnings("unchecked")
+            List<FileItem> formItems = upload.parseRequest(request);
+ 
+            if (formItems != null && formItems.size() > 0) {
+                // 迭代表单数据
+                for (FileItem item : formItems) {
+                    // 处理不在表单中的字段
+                    if (!item.isFormField()) {
+                        String fileName = new File(item.getName()).getName();
+                        String filePath = uploadPath + File.separator + fileName;
+                        File storeFile = new File(filePath);
+                        // 在控制台输出文件的上传路径
+                        System.out.println(filePath);
+                        // 保存文件到硬盘
+                        item.write(storeFile);
+                        request.setAttribute("message",
+                            "文件上传成功!");
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            request.setAttribute("message",
+                    "错误信息: " + ex.getMessage());
+        }
+        // 跳转到 message.jsp
+        request.getServletContext().getRequestDispatcher("/message.jsp").forward(
+                request, response);
+    }
+}
+```
+
